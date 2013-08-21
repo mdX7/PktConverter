@@ -64,6 +64,9 @@ class Converter
                 if (!checked)
                     CheckFormat(buf);
 
+                if (buf.find("Time: ") == std::string::npos)
+                    continue;
+
                 printf("\r%u               ", i++);
                 Tokens tokens = Tokenize(buf, " ;:\r\n");
 
