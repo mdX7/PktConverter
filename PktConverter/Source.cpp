@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <sstream>
 #include <Windows.h>
 
 const char header[3] = { 'P', 'K', 'T' };
@@ -56,8 +57,8 @@ class Converter
         void Convert(int pos = 1, int total = 1)
         {
             std::cout << "[" << pos << "/" << total << "]" << " Converting " << filename << "..." << std::endl;
-            unsigned int i = 0;
 
+            unsigned int counter = 0;
             std::string buf;
             while (std::getline(in, buf))
             {
@@ -67,7 +68,7 @@ class Converter
                 if (buf.find("Time: ") == std::string::npos)
                     continue;
 
-                printf("\r%u               ", i++);
+                printf("\r%u               ", ++counter);
                 Tokens tokens = Tokenize(buf, " ;:\r\n");
 
                 std::string time = tokens[1];
@@ -80,7 +81,7 @@ class Converter
                 if (!headerInit)
                     InitDump(_time);
 
-                DumpOpcode(atoi(opcode.c_str()), strcmp(direction.c_str(), "CMSG") == 0, data, _time);
+                DumpOpcode(atoi(opcode.c_str()), strcmp(direction.c_str(), "CMSG") == 0, data, _time, counter);
             }
 
             std::cout << std::endl << "Done!.." << std::endl << std::endl;
@@ -116,7 +117,7 @@ class Converter
             delete[] cp;
         }
 
-        void DumpOpcode(unsigned int op, bool cmsg, std::string data, unsigned int time)
+        void DumpOpcode(unsigned int op, bool cmsg, std::string data, unsigned int time, unsigned int counter)
         {
             if (cmsg)
                 out.write(serverDirection, sizeof(serverDirection));
@@ -146,7 +147,13 @@ class Converter
                     else if (data[i+j] >= '0' && data[i+j] <= '9')
                         val += (data[i+j] - '0') * (j ? 1 : 16);
                     else
-                        throw std::exception("Wrong opcode data");
+                    {
+                        std::stringstream ss;
+                        ss << "Wrong opcode data at line " << counter;
+                        std::cout << ss.str() << std::endl;
+                        return;
+                        //throw std::exception(ss.str().c_str());
+                    }
                 }
 
                 out.write((const char*)&val, sizeof(val));
@@ -176,6 +183,7 @@ int main(int argc, char* argv[])
     char locale[255];
     GetPrivateProfileStringA("PKTConverter", "ClientLocale", "ruRU", locale, 255, iniPath.c_str());
     memcpy(lang, locale, 4);
+    bool pauseAtEnd = GetPrivateProfileIntA("PKTConverter", "PauseAtEnd", 0, iniPath.c_str()) > 0;
 
     std::cout << "Client build assumed: " << locale << " " << build << std::endl;
 
@@ -192,6 +200,9 @@ int main(int argc, char* argv[])
             std::cout << e.what() << std::endl << std::endl;
         }
     }
+
+    if (pauseAtEnd)
+        system("pause");
 
     return 0;
 }
