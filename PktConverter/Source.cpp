@@ -4,7 +4,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include <sstream>
+#include <regex>
 #include <Windows.h>
 
 const char header[3] = { 'P', 'K', 'T' };
@@ -18,21 +18,18 @@ const char clientDirection[4] = { 'S', 'M', 'S', 'G' };
 const unsigned int sessionid = 0;
 const std::string copyright = "Converted by Amaru from Fabian's sniff format to PKT v1.3 standard";
 
-typedef std::vector<std::string> Tokens;
-Tokens Tokenize(std::string& in, std::string format)
+typedef std::vector<std::string> StringVector;
+StringVector get_matches(std::string const& in, std::string const& regexpr)
 {
-    char* c = new char[in.size() + 1];
-    strcpy(c, in.c_str());
+    std::regex regex(regexpr);
+
+    std::smatch matches;
+    std::regex_match(in, matches, regex);
+
     std::vector<std::string> out;
 
-    char* sub = strtok(c, format.c_str());
-    while (sub != NULL)
-    {
-        out.push_back(sub);
-        sub = strtok(NULL, format.c_str());
-    }
-
-    delete[] c;
+    for (auto e : matches)
+        out.push_back(e.str());
 
     return out;
 }
@@ -43,9 +40,8 @@ class Converter
         Converter(std::string _filename) : filename(_filename)
         {
             headerInit = false;
-            in.open(_filename.c_str(), std::ios::binary);
-            out.open((_filename + ".pkt").c_str(), std::ios::out|std::ios::binary);
-            checked = false;
+            in.open(_filename.c_str(), std::ios::in);
+            out.open((_filename + ".pkt").c_str(), std::ios::out | std::ios::binary);
         }
 
         ~Converter()
@@ -62,19 +58,25 @@ class Converter
             std::string buf;
             while (std::getline(in, buf))
             {
-                if (!checked)
-                    CheckFormat(buf);
-
-                if (buf.find("Time: ") == std::string::npos)
-                    continue;
-
                 printf("\r%u               ", ++counter);
-                Tokens tokens = Tokenize(buf, " ;:\r\n");
 
-                std::string time = tokens[1];
-                std::string direction = tokens[3];
-                std::string opcode = tokens[5];
-                std::string data = tokens.size() < 8 ? "" : tokens[7];
+                StringVector m = get_matches(buf, "^Time: ([0-9]+);OpcodeType: (CMSG|SMSG);OpcodeValue: ([0-9]+);Packet: ([0-9A-Z]*);$");
+                if (!m.size())
+                {
+                    std::cout << std::endl << "ERROR: wrong format at line " << counter << ". Skipping." << std::endl;
+                    continue;
+                }
+
+                std::string time = m[1];
+                std::string direction = m[2];
+                std::string opcode = m[3];
+                std::string data = m[4];
+                if (data.size() % 2 == 1)
+                {
+                    std::cout << std::endl << "ERROR: wrong format at line " << counter << ". Skipping." << std::endl;
+                    continue;
+                }
+
                 unsigned int op = atoi(opcode.c_str());
                 unsigned int _time = atoi(time.c_str());
 
@@ -87,16 +89,8 @@ class Converter
             std::cout << std::endl << "Done!.." << std::endl << std::endl;
         }
 
-        void CheckFormat(std::string& line)
-        {
-            checked = true;
-            if (line.find("Time: ") != 0)
-                throw std::exception("Invalid input file format!");
-        }
-
         void InitDump(unsigned int _startTime)
         {
-
             headerInit = true;
             memset(sessionKey, 0, sizeof(sessionKey));
             unsigned int copyrightLen = copyright.length();
@@ -134,26 +128,18 @@ class Converter
 
             out.write((const char*)&op, sizeof(op));
 
-            for (int i = 0; ; i += 2)
+            for (auto i = 0; ; i += 2)
             {
                 if (i >= data.length())
                     return;
 
                 unsigned char val = 0;
-                for (int j = 0; j < 2; ++j)
+                for (auto j = 0; j < 2; ++j)
                 {
-                    if (data[i+j] >= 'A' && data[i+j] <= 'F')
-                        val += (data[i+j] - 'A' + 10) * (j ? 1 : 16);
-                    else if (data[i+j] >= '0' && data[i+j] <= '9')
-                        val += (data[i+j] - '0') * (j ? 1 : 16);
-                    else
-                    {
-                        std::stringstream ss;
-                        ss << "Wrong opcode data at line " << counter;
-                        std::cout << ss.str() << std::endl;
-                        return;
-                        //throw std::exception(ss.str().c_str());
-                    }
+                    if (data[i + j] >= 'A' && data[i + j] <= 'F')
+                        val += (data[i + j] - 'A' + 10) * (j ? 1 : 16);
+                    else if (data[i + j] >= '0' && data[i + j] <= '9')
+                        val += (data[i + j] - '0') * (j ? 1 : 16);
                 }
 
                 out.write((const char*)&val, sizeof(val));
@@ -165,7 +151,6 @@ class Converter
         std::string filename;
         std::ofstream out;
         std::ifstream in;
-        bool checked;
 };
 
 int main(int argc, char* argv[])
@@ -187,7 +172,7 @@ int main(int argc, char* argv[])
 
     std::cout << "Client build assumed: " << locale << " " << build << std::endl;
 
-    for (int i = 1; i < argc; ++i)
+    for (auto i = 1; i < argc; ++i)
     {
         try
         {
