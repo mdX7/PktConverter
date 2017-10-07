@@ -11,12 +11,12 @@ const char header[3] = { 'P', 'K', 'T' };
 const unsigned char snifferId = 12;
 unsigned int build = 16357;
 char sessionKey[40];
-char lang[4] = { 'r', 'u', 'R', 'U' };
+char lang[4] = { 'e', 'n', 'U', 'S' };
 const char ver[2] = { 0x1, 0x3 };
 const char serverDirection[4] = { 'C', 'M', 'S', 'G' };
 const char clientDirection[4] = { 'S', 'M', 'S', 'G' };
 const unsigned int sessionid = 0;
-const std::string copyright = "Converted by Amaru from Fabian's sniff format to PKT v1.3 standard";
+const std::string copyright = "";
 
 typedef std::vector<std::string> StringVector;
 StringVector get_matches(std::string const& in, std::string const& regexpr)
@@ -60,7 +60,7 @@ class Converter
             {
                 printf("\r%u               ", ++counter);
 
-                StringVector m = get_matches(buf, "^Time: ([0-9]+);OpcodeType: (CMSG|SMSG);OpcodeValue: ([0-9]+);Packet: ([0-9A-Z]*);$");
+                StringVector m = get_matches(buf, "^Time: ([0-9]+);OpcodeType: (ClientMessage|ServerMessage);OpcodeValue: ([0-9]+);Packet: ([0-9A-Z]*);$");
                 if (!m.size())
                 {
                     std::cout << std::endl << "ERROR: wrong format at line " << counter << ". Skipping." << std::endl;
@@ -166,7 +166,7 @@ int main(int argc, char* argv[])
     iniPath += "PktSettings.ini";
     build = GetPrivateProfileIntA("PKTConverter", "ClientBuild", build, iniPath.c_str());
     char locale[255];
-    GetPrivateProfileStringA("PKTConverter", "ClientLocale", "ruRU", locale, 255, iniPath.c_str());
+    GetPrivateProfileStringA("PKTConverter", "ClientLocale", "enUS", locale, 255, iniPath.c_str());
     memcpy(lang, locale, 4);
     bool pauseAtEnd = GetPrivateProfileIntA("PKTConverter", "PauseAtEnd", 0, iniPath.c_str()) > 0;
 
