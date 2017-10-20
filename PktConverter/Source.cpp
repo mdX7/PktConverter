@@ -83,7 +83,7 @@ class Converter
                 if (!headerInit)
                     InitDump(_time);
 
-                DumpOpcode(atoi(opcode.c_str()), strcmp(direction.c_str(), "CMSG") == 0, data, _time, counter);
+                DumpOpcode(atoi(opcode.c_str()), strcmp(direction.c_str(), "ClientMessage") == 0, data, _time, counter);
             }
 
             std::cout << std::endl << "Done!.." << std::endl << std::endl;
