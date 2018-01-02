@@ -16,6 +16,7 @@ const char ver[2] = { 0x1, 0x3 };
 const char serverDirection[4] = { 'C', 'M', 'S', 'G' };
 const char clientDirection[4] = { 'S', 'M', 'S', 'G' };
 const unsigned int sessionid = 0;
+const unsigned int tickCount = 1000;
 const std::string copyright = "";
 
 typedef std::vector<std::string> StringVector;
@@ -42,6 +43,7 @@ class Converter
             headerInit = false;
             in.open(_filename.c_str(), std::ios::in);
             out.open((_filename + ".pkt").c_str(), std::ios::out | std::ios::binary);
+            firstPacketTime = 0;
         }
 
         ~Converter()
@@ -104,7 +106,7 @@ class Converter
             out.write((const char*)&lang, sizeof(lang));
             out.write((const char*)&sessionKey, sizeof(sessionKey));
             out.write((const char*)&_startTime, sizeof(_startTime));    // timestamp
-            out.write((const char*)&_startTime, sizeof(_startTime));    // tick count
+            out.write((const char*)&tickCount, sizeof(tickCount));      // tick count
             out.write((const char*)&copyrightLen, sizeof(copyrightLen));
             out.write(cp, copyrightLen);
 
@@ -119,7 +121,12 @@ class Converter
                 out.write(clientDirection, sizeof(clientDirection));
 
             out.write((const char*)&sessionid, sizeof(sessionid));
-            out.write((const char*)&time, sizeof(time));
+
+            if (firstPacketTime == 0)
+                firstPacketTime = time;
+
+            int packetTime = tickCount + (1000 * (time - firstPacketTime));
+            out.write((const char*)&packetTime, sizeof(time));
 
             unsigned int optdatalen = 0;
             out.write((const char*)&optdatalen, sizeof(optdatalen));
@@ -151,6 +158,7 @@ class Converter
         std::string filename;
         std::ofstream out;
         std::ifstream in;
+        int firstPacketTime;
 };
 
 int main(int argc, char* argv[])
