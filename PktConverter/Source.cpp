@@ -16,7 +16,7 @@ const char ver[2] = { 0x1, 0x3 };
 const char serverDirection[4] = { 'C', 'M', 'S', 'G' };
 const char clientDirection[4] = { 'S', 'M', 'S', 'G' };
 const unsigned int sessionid = 0;
-const unsigned int tickCount = 1000;
+const unsigned int tickCount = 0;
 const std::string copyright = "";
 
 typedef std::vector<std::string> StringVector;
