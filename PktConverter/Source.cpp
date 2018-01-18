@@ -7,17 +7,17 @@
 #include <regex>
 #include <Windows.h>
 
-const char header[3] = { 'P', 'K', 'T' };
-const unsigned char snifferId = 12;
-unsigned int build = 16357;
+char const header[3] = { 'P', 'K', 'T' };
+std::uint8_t snifferId = 12;
+std::uint32_t build = 16357;
 char sessionKey[40];
 char lang[4] = { 'e', 'n', 'U', 'S' };
-const char ver[2] = { 0x1, 0x3 };
-const char serverDirection[4] = { 'C', 'M', 'S', 'G' };
-const char clientDirection[4] = { 'S', 'M', 'S', 'G' };
-const unsigned int sessionid = 0;
-const unsigned int tickCount = 0;
-const std::string copyright = "";
+char const ver[2] = { 0x1, 0x3 };
+char const serverDirection[4] = { 'C', 'M', 'S', 'G' };
+char const clientDirection[4] = { 'S', 'M', 'S', 'G' };
+std::uint32_t sessionid = 0;
+std::uint32_t tickCount = 0;
+std::string optionalData = "";
 
 typedef std::vector<std::string> StringVector;
 StringVector get_matches(std::string const& in, std::string const& regexpr)
@@ -35,6 +35,13 @@ StringVector get_matches(std::string const& in, std::string const& regexpr)
     return out;
 }
 
+struct MillisecondsData
+{
+    std::uint8_t bytes0;
+    std::int16_t bytes1;
+    std::int64_t bytes2;
+};
+
 class Converter
 {
     public:
@@ -44,25 +51,27 @@ class Converter
             in.open(_filename.c_str(), std::ios::in);
             out.open((_filename + ".pkt").c_str(), std::ios::out | std::ios::binary);
             firstPacketTime = 0;
+            msData = nullptr;
         }
 
         ~Converter()
         {
             in.close();
             out.close();
+            delete msData;
         }
 
         void Convert(int pos = 1, int total = 1)
         {
             std::cout << "[" << pos << "/" << total << "]" << " Converting " << filename << "..." << std::endl;
 
-            unsigned int counter = 0;
+            std::uint32_t counter = 0;
             std::string buf;
             while (std::getline(in, buf))
             {
                 printf("\r%u               ", ++counter);
 
-                StringVector m = get_matches(buf, "^Time: ([0-9]+);OpcodeType: (ClientMessage|ServerMessage);OpcodeValue: ([0-9]+);Packet: ([0-9A-Z]*);$");
+                StringVector m = get_matches(buf, "^Time: ([0-9]+,?[0-9]+?);OpcodeType: (ClientMessage|ServerMessage);OpcodeValue: ([0-9]+);Packet: ([0-9A-Z]*);$");
                 if (!m.size())
                 {
                     std::cout << std::endl << "ERROR: wrong format at line " << counter << ". Skipping." << std::endl;
@@ -79,8 +88,21 @@ class Converter
                     continue;
                 }
 
-                unsigned int op = atoi(opcode.c_str());
-                unsigned int _time = atoi(time.c_str());
+                if (time.length() > 10)
+                {
+                    time = time.substr(0, time.find(','));
+                    if (!msData)
+                    {
+                        snifferId = 83;
+                        msData = new MillisecondsData();
+                        msData->bytes0 = 0xFF;
+                        msData->bytes1 = 0x0107;
+                        msData->bytes2 = atoll(time.c_str()) * 10000 + 116444736000000000;
+                    }
+                }
+
+                std::uint32_t op = atoi(opcode.c_str());
+                std::uint64_t _time = atoll(time.c_str());
 
                 if (!headerInit)
                     InitDump(_time);
@@ -91,49 +113,63 @@ class Converter
             std::cout << std::endl << "Done!.." << std::endl << std::endl;
         }
 
-        void InitDump(unsigned int _startTime)
+        void InitDump(std::uint64_t _startTime)
         {
             headerInit = true;
             memset(sessionKey, 0, sizeof(sessionKey));
-            unsigned int copyrightLen = copyright.length();
-            char* cp = new char[copyrightLen];
-            memcpy(cp, copyright.c_str(), copyrightLen);
 
             out.write(header, sizeof(header));
             out.write(ver, sizeof(ver));
-            out.write((const char*)&snifferId, sizeof(snifferId));
-            out.write((const char*)&build, sizeof(build));
-            out.write((const char*)&lang, sizeof(lang));
-            out.write((const char*)&sessionKey, sizeof(sessionKey));
-            out.write((const char*)&_startTime, sizeof(_startTime));    // timestamp
-            out.write((const char*)&tickCount, sizeof(tickCount));      // tick count
-            out.write((const char*)&copyrightLen, sizeof(copyrightLen));
-            out.write(cp, copyrightLen);
+            out.write((char const*)&snifferId, sizeof(snifferId));
+            out.write((char const*)&build, sizeof(build));
+            out.write((char const*)&lang, sizeof(lang));
+            out.write((char const*)&sessionKey, sizeof(sessionKey));
 
-            delete[] cp;
+            std::uint32_t startTime = msData ? std::uint32_t(_startTime / 1000) : std::uint32_t(_startTime);
+            out.write((char const*)&startTime, sizeof(startTime));    // timestamp
+
+            out.write((char const*)&tickCount, sizeof(tickCount));      // tick count
+
+            if (msData)
+            {
+                std::uint32_t msDataLen = sizeof(msData->bytes0) + sizeof(msData->bytes1) + sizeof(msData->bytes2);
+                out.write((char const*)&msDataLen, sizeof(msDataLen));
+                out.write((char const*)&msData->bytes0, sizeof(msData->bytes0));
+                out.write((char const*)&msData->bytes1, sizeof(msData->bytes1));
+                out.write((char const*)&msData->bytes2, sizeof(msData->bytes2));
+            }
+            else
+            {
+                std::uint32_t optionalDataLen = optionalData.length();
+                char* cp = new char[optionalDataLen];
+                memcpy(cp, optionalData.c_str(), optionalDataLen);
+                out.write((char const*)&optionalDataLen, sizeof(optionalDataLen));
+                out.write(cp, optionalDataLen);
+                delete[] cp;
+            }
         }
 
-        void DumpOpcode(unsigned int op, bool cmsg, std::string data, unsigned int time, unsigned int counter)
+        void DumpOpcode(std::uint32_t op, bool cmsg, std::string data, std::uint64_t time, std::uint32_t counter)
         {
             if (cmsg)
                 out.write(serverDirection, sizeof(serverDirection));
             else
                 out.write(clientDirection, sizeof(clientDirection));
 
-            out.write((const char*)&sessionid, sizeof(sessionid));
+            out.write((char const*)&sessionid, sizeof(sessionid));
 
             if (firstPacketTime == 0)
                 firstPacketTime = time;
 
-            int packetTime = tickCount + (1000 * (time - firstPacketTime));
-            out.write((const char*)&packetTime, sizeof(time));
+            std::uint32_t packetTime = tickCount + ((msData ? 1 : 1000) * std::uint32_t(time - firstPacketTime));
+            out.write((char const*)&packetTime, sizeof(packetTime));
 
-            unsigned int optdatalen = 0;
-            out.write((const char*)&optdatalen, sizeof(optdatalen));
-            unsigned int datalen = data.length() / 2 + 4;
-            out.write((const char*)&datalen, sizeof(datalen));
+            std::uint32_t optdatalen = 0;
+            out.write((char const*)&optdatalen, sizeof(optdatalen));
+            std::uint32_t datalen = data.length() / 2 + 4;
+            out.write((char const*)&datalen, sizeof(datalen));
 
-            out.write((const char*)&op, sizeof(op));
+            out.write((char const*)&op, sizeof(op));
 
             for (auto i = 0; ; i += 2)
             {
@@ -149,7 +185,7 @@ class Converter
                         val += (data[i + j] - '0') * (j ? 1 : 16);
                 }
 
-                out.write((const char*)&val, sizeof(val));
+                out.write((char const*)&val, sizeof(val));
             }
         }
 
@@ -158,7 +194,8 @@ class Converter
         std::string filename;
         std::ofstream out;
         std::ifstream in;
-        int firstPacketTime;
+        std::uint64_t firstPacketTime;
+        MillisecondsData* msData;
 };
 
 int main(int argc, char* argv[])
