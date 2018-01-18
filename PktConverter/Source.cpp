@@ -221,6 +221,7 @@ int main(int argc, char* argv[])
     {
         try
         {
+            snifferId = 12; // Reset sniffer version because we change it if the time in the file is in milliseconds
             Converter p(argv[i]);
             p.Convert(i, argc - 1);
         }
