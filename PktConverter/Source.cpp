@@ -70,6 +70,13 @@ public:
     {
         std::cout << "[" << pos << "/" << total << "]" << " Converting " << filename << "..." << std::endl;
 
+        std::smatch matches;
+        if (std::regex_search(filename, matches, std::regex("_[0-9]+_")))
+        {
+            build = std::stoi(std::string(matches[0]).substr(1, 5));
+            std::cout << "found build in filename - setting it to " << build << std::endl;
+        }
+
         uint32_t counter = 0;
         std::string buf;
         while (std::getline(in, buf))
