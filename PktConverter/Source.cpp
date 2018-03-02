@@ -216,32 +216,21 @@ void readConfigFile(std::string const& iniPath)
     inputConfig.open(iniPath);
 
     std::string buf;
-    size_t pos;
+    StringVector tokens;
     while (!inputConfig.eof())
     {
         inputConfig >> buf;
 
-        if (!build)
-        {
-            pos = buf.find("Build");
-            if (pos != buf.npos)
-                build = std::stoi(buf.substr(pos + 6));
-        }
+        tokens = Tokenize(buf, "=");
 
-        if (lang[0] == ' ')
-        {
-            pos = buf.find("Locale");
-            if (pos != buf.npos)
-                memcpy(lang, buf.substr(pos + 7, 4).c_str(), 4);
-        }
-
-        pos = buf.find("PauseAtEnd");
-        if (pos != buf.npos)
-            pauseAtEnd = std::stoi(buf.substr(pos + 11)) > 0;
-
-        pos = buf.find("BuildCorrection");
-        if (pos != buf.npos)
-            buildCorrection = std::stoi(buf.substr(pos + 16)) > 0;
+        if (!build && tokens[0] == "ClientBuild")
+            build = std::stoi(tokens[1]);
+        else if (lang[0] == ' ' && tokens[0] == "ClientLocale")
+            memcpy(lang, tokens[1].c_str(), 4);
+        else if (tokens[0] == "PauseAtEnd")
+            pauseAtEnd = std::stoi(tokens[1]) > 0;
+        else if (tokens[0] == "BuildCorrection")
+            buildCorrection = std::stoi(tokens[1]) > 0;
     }
 }
 
