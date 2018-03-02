@@ -10,8 +10,9 @@ char const header[3] = { 'P', 'K', 'T' };
 uint8_t snifferId = 12;
 uint32_t build = 0;
 char sessionKey[40];
-char lang[4] = { 'e', 'n', 'U', 'S' };
+char lang[4] = { ' ', ' ', ' ', ' ' };
 bool pauseAtEnd = false;
+bool buildCorrection = false;
 char const ver[2] = { 0x1, 0x3 };
 char const serverDirection[4] = { 'C', 'M', 'S', 'G' };
 char const clientDirection[4] = { 'S', 'M', 'S', 'G' };
@@ -70,11 +71,14 @@ public:
     {
         std::cout << "[" << pos << "/" << total << "]" << " Converting " << filename << "..." << std::endl;
 
-        std::smatch matches;
-        if (std::regex_search(filename, matches, std::regex("_[0-9]+_")))
+        if (buildCorrection)
         {
-            build = std::stoi(std::string(matches[0]).substr(1, 5));
-            std::cout << "found build in filename - setting it to " << build << std::endl;
+            std::smatch matches;
+            if (std::regex_search(filename, matches, std::regex("_[0-9]+_")))
+            {
+                build = std::stoi(std::string(matches[0]).substr(1, 5));
+                std::cout << "found build in filename - setting it to " << build << std::endl;
+            }
         }
 
         uint32_t counter = 0;
@@ -224,12 +228,20 @@ void readConfigFile(std::string const& iniPath)
                 build = std::stoi(buf.substr(pos + 6));
         }
 
-        pos = buf.find("Locale");
-        if (pos != buf.npos)
-            memcpy(lang, buf.substr(pos + 7, 4).c_str(), 4);
+        if (lang[0] == ' ')
+        {
+            pos = buf.find("Locale");
+            if (pos != buf.npos)
+                memcpy(lang, buf.substr(pos + 7, 4).c_str(), 4);
+        }
+
         pos = buf.find("PauseAtEnd");
         if (pos != buf.npos)
             pauseAtEnd = std::stoi(buf.substr(pos + 11)) > 0;
+
+        pos = buf.find("BuildCorrection");
+        if (pos != buf.npos)
+            buildCorrection = std::stoi(buf.substr(pos + 16)) > 0;
     }
 }
 
